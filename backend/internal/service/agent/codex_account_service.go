@@ -487,17 +487,29 @@ func (s *Service) VerifyCodexAccountForSwitch(ctx context.Context, accountID str
 	}
 	client, err := s.codexAccounts.factory.Open(verifyCtx, ports.CodexAccountContext{Home: record.Home, Managed: true})
 	if err != nil {
-		s.codexAccounts.requireReauthentication(record.Snapshot.ID)
-		return apierr.Conflict("CODEX_ACCOUNT_REAUTHENTICATION_REQUIRED", "Sign in again before switching to this Codex account", nil)
+		s.codexAccounts.invalidate(record.Snapshot.ID)
+		return apierr.Unavailable("CODEX_ACCOUNT_VERIFICATION_FAILED", "Codex account could not be verified right now, try again")
 	}
 	refresh := record.Snapshot.AccountEmail != nil && safeAccountEmail(*record.Snapshot.AccountEmail)
 	observation, err := client.Read(verifyCtx, refresh)
 	_ = client.Close()
-	latestCredential, latest, latestErr := readCodexFileState(credentialPath, false)
-	stableOpaqueIdentity := distinguishableCodexIdentity(observation) || (latestErr == nil && sameCodexFileState(admitted, latest))
-	if err != nil || latestErr != nil || !stableOpaqueIdentity || (observation.Authentication != domain.AgentAuthenticationAuthorized && observation.Authentication != domain.AgentAuthenticationNotApplicable) || !s.codexAccounts.observationAndCredentialIdentifyRecord(record, observation, latestCredential) || (!distinguishableCodexIdentity(observation) && !bytes.Equal(credential, latestCredential)) {
+	if err != nil {
+		s.codexAccounts.invalidate(record.Snapshot.ID)
+		return apierr.Unavailable("CODEX_ACCOUNT_VERIFICATION_FAILED", "Codex account could not be verified right now, try again")
+	}
+	if observation.Authentication == domain.AgentAuthenticationUnauthorized {
 		s.codexAccounts.requireReauthentication(record.Snapshot.ID)
 		return apierr.Conflict("CODEX_ACCOUNT_REAUTHENTICATION_REQUIRED", "Sign in again before switching to this Codex account", nil)
+	}
+	if observation.Authentication != domain.AgentAuthenticationAuthorized && observation.Authentication != domain.AgentAuthenticationNotApplicable {
+		s.codexAccounts.invalidate(record.Snapshot.ID)
+		return apierr.Unavailable("CODEX_ACCOUNT_VERIFICATION_FAILED", "Codex account could not be verified right now, try again")
+	}
+	latestCredential, latest, latestErr := readCodexFileState(credentialPath, false)
+	stableOpaqueIdentity := distinguishableCodexIdentity(observation) || (latestErr == nil && sameCodexFileState(admitted, latest))
+	if latestErr != nil || !stableOpaqueIdentity || !s.codexAccounts.observationAndCredentialIdentifyRecord(record, observation, latestCredential) || (!distinguishableCodexIdentity(observation) && !bytes.Equal(credential, latestCredential)) {
+		s.codexAccounts.invalidate(record.Snapshot.ID)
+		return apierr.Conflict("CODEX_ACCOUNT_IDENTITY_CHANGED", "The Codex account changed during verification, try again", nil)
 	}
 	s.codexAccounts.clearReauthenticationRequired(record.Snapshot.ID)
 	return nil
