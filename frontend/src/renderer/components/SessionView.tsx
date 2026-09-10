@@ -403,6 +403,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 		phase: "docked",
 	});
 	const [filesPoppedOut, setFilesPoppedOut] = useState(false);
+	const [filesSplit, setFilesSplit] = useState(() => window.localStorage.getItem("ao.files.diffStyle") === "split");
 	const [filePreviewRequestsBySession, setFilePreviewRequestsBySession] = useState<
 		Record<string, { path: string; key: number }>
 	>({});
@@ -1602,7 +1603,7 @@ export function SessionView({ sessionId }: SessionViewProps) {
 							</div>
 							{fileTabs.activePath ? (
 								<div className="absolute inset-0">
-									<SessionFileWorkspace annotation={fileAnnotation} path={fileTabs.activePath} sessionId={sessionId} />
+								<SessionFileWorkspace annotation={fileAnnotation} path={fileTabs.activePath} sessionId={sessionId} split={filesSplit} />
 								</div>
 							) : null}
 							{interfaceSwitch.startError && !interfaceSwitchDialogOpen ? (
@@ -1653,9 +1654,11 @@ export function SessionView({ sessionId }: SessionViewProps) {
 								session ? (
 									<SessionFileExplorer
 										onOpenFile={openCenterFile}
+										onSplitChange={setFilesSplit}
 										onToggleMaximized={handleToggleFilesPopOut}
 										revealRequest={filePreviewRequestsBySession[sessionId] ?? null}
 										sessionId={session.id}
+										split={filesSplit}
 									/>
 								) : null
 							}
@@ -1715,8 +1718,10 @@ export function SessionView({ sessionId }: SessionViewProps) {
 						>
 							<SessionFileExplorer
 								isMaximized
+								onSplitChange={setFilesSplit}
 								onToggleMaximized={handleToggleFilesPopOut}
 								sessionId={session.id}
+								split={filesSplit}
 							/>
 						</div>,
 						document.body,
