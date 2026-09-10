@@ -17,7 +17,7 @@ func TestShellTerminalLifetimeMigrationPreservesLegacyShell(t *testing.T) {
 	if _, err := db.Exec(`INSERT INTO shell_terminals (handle_id, working_dir, title, app_run_id, created_at) VALUES ('legacy-shell', '/worktree', 'Build', 'previous-launch', ?)`, time.Now().UTC()); err != nil {
 		t.Fatal(err)
 	}
-	upTo(t, db, 132)
+	upTo(t, db, 133)
 	var handle, title, dir string
 	if err := db.QueryRow(`SELECT handle_id, title, working_dir FROM shell_terminals WHERE transient = FALSE OR app_run_id = 'next-launch'`).Scan(&handle, &title, &dir); err != nil {
 		t.Fatal(err)
